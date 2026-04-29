@@ -3,10 +3,9 @@
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "backend/Dockerfile",
-    "buildCommand": ""
+    "dockerContextPath": "backend"
   },
   "deploy": {
-    "startCommand": "",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3
   }
