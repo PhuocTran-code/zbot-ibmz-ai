@@ -8,11 +8,15 @@ Run:
 import logging
 from typing import Optional
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+load_dotenv()
+
 import rag
+import supabase_db
 from badge_config import (
     BADGES,
     check_concepts_badge,
@@ -39,17 +43,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── In-memory progress store ─────────────────────────────────────────────────
-# Structure: { user_id: { badge_id: status } }
-# status values: "not_started" | "in_progress" | "completed"
+# ── Progress store ───────────────────────────────────────────────────────────
+# Uses Supabase when SUPABASE_URL + SUPABASE_KEY are set; falls back to an
+# in-memory dict for local development without a database.
 
-_user_progress: dict[str, dict[str, str]] = {}
+_mem_progress: dict[str, dict[str, str]] = {}
 
 VALID_STATUSES = {"not_started", "in_progress", "completed"}
 
 
 def _get_user_progress(user_id: str) -> dict[str, str]:
-    return _user_progress.setdefault(user_id, {})
+    if supabase_db.is_configured():
+        return supabase_db.get_user_progress(user_id)
+    return _mem_progress.setdefault(user_id, {})
 
 
 def _completed_badges(user_id: str) -> list[str]:
@@ -238,7 +244,10 @@ def update_progress(req: ProgressUpdateRequest):
                    f"Must be one of: {sorted(VALID_STATUSES)}",
         )
 
-    _get_user_progress(req.user_id)[req.badge_id] = req.status
+    if supabase_db.is_configured():
+        supabase_db.upsert_progress(req.user_id, req.badge_id, req.status)
+    else:
+        _get_user_progress(req.user_id)[req.badge_id] = req.status
     completed = _completed_badges(req.user_id)
 
     logger.info(
