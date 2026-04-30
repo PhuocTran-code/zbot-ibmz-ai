@@ -245,6 +245,16 @@ export default function BadgeSidebar({
         <p>Click badge name to filter chat.</p>
         <p>Click status icon to update.</p>
       </div>
+
+      {/* Disclaimer */}
+      <div className="px-4 py-3 border-t border-gray-800 bg-gray-950/60">
+        <p className="text-xs text-gray-600 leading-relaxed">
+          Unofficial tool for personal learning only.{' '}
+          <span className="text-gray-700">
+            All IBM Z Xplore content belongs to IBM Corporation.
+          </span>
+        </p>
+      </div>
     </aside>
   )
 }

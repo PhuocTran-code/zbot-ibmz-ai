@@ -156,6 +156,9 @@ export default function ChatPanel({
         <p className="text-xs text-gray-600 mt-2 text-center">
           Enter to send · Shift+Enter for new line
         </p>
+        <p className="text-xs text-gray-700 mt-1.5 text-center">
+          Unofficial tool for personal learning · All IBM Z Xplore content © IBM Corporation
+        </p>
       </div>
     </div>
   )
