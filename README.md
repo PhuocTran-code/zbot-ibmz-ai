@@ -51,7 +51,7 @@ Browser (Next.js)
         ▼
   POST /chat  (FastAPI — Render)
         │
-        ├── rag.retrieve()     — sentence-transformers → ChromaDB cosine search
+        ├── rag.retrieve()     — Gemini embeddings → ChromaDB cosine search
         ├── rag.format_context() — render chunks into prompt
         ├── llm.get_llm_response() — Gemini / Groq
         └── suggest_next_badge()  — rule-based next-badge logic
@@ -79,8 +79,8 @@ Browser (Next.js)
 
 **Backend**
 - Python 3.11, FastAPI, Uvicorn
-- ChromaDB (vector store) + `sentence-transformers/all-MiniLM-L6-v2`
-- Google Gemini API + Groq API
+- ChromaDB (vector store) + `gemini-embedding-001` (768-dim, via Gemini API)
+- Google Gemini API (chat + embeddings) + Groq API (fallback)
 - Supabase (PostgreSQL) for progress persistence
 - Docker → deployed on **Render**
 
