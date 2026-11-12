@@ -11,8 +11,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+import os
+
 import chromadb
-from sentence_transformers import SentenceTransformer
+import google.generativeai as genai
 
 from llm import get_llm_response
 from badge_config import BADGES, FUNDAMENTALS, CONCEPTS_IDS, ADVANCED_IDS, ALLSTAR_IDS
@@ -24,7 +26,7 @@ logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).parent
 CHROMA_DIR = BASE_DIR / "chroma_db"
 COLLECTION_NAME = "zxplore_knowledge"
-EMBED_MODEL_NAME = "all-MiniLM-L6-v2"
+GEMINI_EMBED_MODEL = "models/gemini-embedding-001"
 SOURCE_SCORE_THRESHOLD = 0.3   # minimum similarity score to include in sources
 
 # ── Badge catalog (injected into every prompt) ───────────────────────────────
@@ -116,18 +118,10 @@ def _extract_follow_up(text: str) -> tuple[str, list[str]]:
 
 @dataclass
 class _RAGState:
-    embed_model: Optional[SentenceTransformer] = field(default=None)
     collection: Optional[chromadb.Collection] = field(default=None)
 
 
 _state = _RAGState()
-
-
-def _get_embed_model() -> SentenceTransformer:
-    if _state.embed_model is None:
-        logger.info("Loading embedding model '%s'…", EMBED_MODEL_NAME)
-        _state.embed_model = SentenceTransformer(EMBED_MODEL_NAME)
-    return _state.embed_model
 
 
 def _get_collection() -> chromadb.Collection:
@@ -162,10 +156,15 @@ def retrieve(
             chunk_id, score
         Sorted by score descending.
     """
-    model = _get_embed_model()
     collection = _get_collection()
 
-    query_embedding = model.encode(query).tolist()
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    genai.configure(api_key=api_key)
+    query_embedding = genai.embed_content(
+        model=GEMINI_EMBED_MODEL,
+        content=query,
+        task_type="retrieval_query",
+    )["embedding"]
 
     where_filter = {"badge_id": badge_filter} if badge_filter else None
 

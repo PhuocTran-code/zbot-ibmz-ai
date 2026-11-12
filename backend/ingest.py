@@ -8,15 +8,27 @@ Usage:
     python ingest.py
 """
 
+import os
 import re
 import sys
+import time
 from pathlib import Path
 
 import fitz  # PyMuPDF
 import chromadb
-from sentence_transformers import SentenceTransformer
+import google.generativeai as genai
+from google.api_core.exceptions import ResourceExhausted
+from dotenv import load_dotenv
 
 from badge_config import BADGES
+
+load_dotenv()
+_api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+if not _api_key:
+    raise RuntimeError("GEMINI_API_KEY is not set")
+genai.configure(api_key=_api_key)
+
+GEMINI_EMBED_MODEL = "models/gemini-embedding-001"
 
 # ── Paths & constants ────────────────────────────────────────────────────────
 
@@ -174,7 +186,6 @@ def build_chunks(badge_id: str, text: str) -> list[dict]:
 
 def upsert_batches(
     collection: chromadb.Collection,
-    model: SentenceTransformer,
     all_chunks: list[dict],
 ) -> None:
     """Embed and upsert all chunks in BATCH_SIZE batches."""
@@ -182,7 +193,18 @@ def upsert_batches(
     for start in range(0, total, BATCH_SIZE):
         batch = all_chunks[start : start + BATCH_SIZE]
         documents = [c["document"] for c in batch]
-        embeddings = model.encode(documents, show_progress_bar=False).tolist()
+        while True:
+            try:
+                result = genai.embed_content(
+                    model=GEMINI_EMBED_MODEL,
+                    content=documents,
+                    task_type="retrieval_document",
+                )
+                break
+            except ResourceExhausted:
+                print("  Rate limit hit — waiting 65s before retry…")
+                time.sleep(65)
+        embeddings = result["embedding"]
         metadatas = [
             {
                 "badge_id":   c["badge_id"],
@@ -204,14 +226,12 @@ def upsert_batches(
         )
         end = min(start + BATCH_SIZE, total)
         print(f"  Upserted chunks {start + 1}–{end} / {total}")
+        time.sleep(0.2)
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    print("Loading embedding model…")
-    model = SentenceTransformer("all-MiniLM-L6-v2")
-
     print(f"Connecting to ChromaDB at {CHROMA_DIR}")
     client = chromadb.PersistentClient(path=str(CHROMA_DIR))
     collection = client.get_or_create_collection(
@@ -254,7 +274,7 @@ def main() -> None:
     all_chunks = list(seen.values())
 
     print(f"\nEmbedding & upserting {len(all_chunks)} total chunks…")
-    upsert_batches(collection, model, all_chunks)
+    upsert_batches(collection, all_chunks)
 
     print(f"\nDone. Collection '{COLLECTION_NAME}' now has "
           f"{collection.count()} documents.")
